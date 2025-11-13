@@ -47,8 +47,8 @@ jobs:
         env:
           SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME || '' }}
         run: |
-          ARGS=""
           if [ -n "${SEO_SPREADSHEET_NAME}" ]; then
-            ARGS="--spreadsheet-name \"${SEO_SPREADSHEET_NAME}\""
+            python pipeline/assistant_analysis.py --spreadsheet-name "${SEO_SPREADSHEET_NAME}"
+          else
+            python pipeline/assistant_analysis.py
           fi
-          python pipeline/assistant_analysis.py $ARGS
