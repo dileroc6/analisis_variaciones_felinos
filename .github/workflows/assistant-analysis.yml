@@ -2,7 +2,7 @@ name: Assistant Analysis
 
 on:
   schedule:
-    - cron: "0 3 * * 1"
+    - cron: "0 2 * * 1"  # 02:00 UTC equivale a las 21:00 del domingo en Colombia
   workflow_dispatch:
 
 jobs:

@@ -46,7 +46,7 @@ python pipeline/assistant_analysis.py --dry-run
 
 El workflow `assistant-analysis.yml`:
 
-1. Se ejecuta cada lunes a las 03:00 UTC (cron `0 3 * * 1`) o manualmente.
+1. Se ejecuta cada lunes a las 02:00 UTC (domingo 21:00 hora de Colombia, cron `0 2 * * 1`) o manualmente mediante la opción *Run workflow*.
 2. Instala dependencias desde `requirements.txt` si existe; de lo contrario instala `pandas` y `numpy`.
 3. Guarda las credenciales de Google en `service_account.json` si el secreto está configurado.
 4. Ejecuta el script `pipeline/assistant_analysis.py`, pasando el nombre de la hoja si existe el secreto `SEO_SPREADSHEET_NAME`.
