@@ -11,15 +11,15 @@ jobs:
     env:
       GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/service_account.json
     steps:
-      - name: Checkout repository
+      - name: "📦 Descargar repositorio"
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: "🐍 Configurar Python"
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: "📚 Instalar dependencias"
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
@@ -28,12 +28,12 @@ jobs:
             python -m pip install pandas numpy
           fi
 
-      - name: Configure Google credentials
+      - name: "🔐 Configurar credenciales de Google"
         if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' }}
         run: |
           echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" > "$GOOGLE_APPLICATION_CREDENTIALS"
 
-      - name: Execute assistant analysis pipeline
+      - name: "🤖 Ejecutar pipeline de análisis"
         env:
           SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME }}
         run: |
