@@ -45,7 +45,7 @@ class SheetsManager:
     def _open_spreadsheet(self, spreadsheet_name: str) -> gspread.Spreadsheet:
         try:
             return self._client.open(spreadsheet_name)
-        except gspread.SpreadsheetNotFound:  # intenta abrir como ID directamente
+        except (gspread.SpreadsheetNotFound, gspread.exceptions.APIError):
             return self._client.open_by_key(spreadsheet_name)
 
     def read_worksheet(self, worksheet_title: str) -> pd.DataFrame:
