@@ -54,7 +54,7 @@ DATE_COLUMN_CANDIDATES = ("date", "fecha", "Date", "Fecha")
 URL_COLUMN_CANDIDATES = ("page", "url", "URL", "Page")
 
 OUTPUT_COLUMNS = [
-    "Fecha",
+    "Periodo Analizado",
     "URL",
     "CTR Variacion (%)",
     "Impresiones Variacion (%)",
@@ -215,7 +215,9 @@ def build_variation_table(
 
         result[column_name] = percentage_change(current_series, previous_series)
 
-    result["Fecha"] = reference_date.strftime("%Y-%m-%d")
+    recent_label = f"{recent_start:%Y-%m-%d} a {recent_end:%Y-%m-%d}"
+    previous_label = f"{previous_start:%Y-%m-%d} a {previous_end:%Y-%m-%d}"
+    result["Periodo Analizado"] = f"{recent_label} (vs {previous_label})"
     result[SUMMARY_COLUMN] = ""
 
     result = result.reset_index()
