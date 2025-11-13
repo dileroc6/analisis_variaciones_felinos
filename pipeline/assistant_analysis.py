@@ -153,6 +153,9 @@ def aggregate_period(
         column = config["column"]
         if column not in period_df.columns:
             continue
+        # Fuerza las columnas métricas a ser numéricas para evitar fallos por strings.
+        if not pd.api.types.is_numeric_dtype(period_df[column]):
+            period_df[column] = pd.to_numeric(period_df[column], errors="coerce")
         agg_func = config.get("agg", "sum")
         data[metric_name] = group[column].agg(agg_func)
 
