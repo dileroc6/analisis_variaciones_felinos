@@ -29,13 +29,15 @@ jobs:
           fi
 
       - name: "🔐 Configurar credenciales de Google"
-        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || '' }}
+        if: ${{ env.GOOGLE_SERVICE_ACCOUNT_JSON != '' }}
         run: |
-          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
 
       - name: "🤖 Ejecutar pipeline de análisis"
         env:
-          SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME }}
+          SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME || '' }}
         run: |
           ARGS=""
           if [ -n "${SEO_SPREADSHEET_NAME}" ]; then
