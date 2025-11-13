@@ -28,14 +28,6 @@ jobs:
             python -m pip install pandas numpy gspread google-auth
           fi
 
-      - name: "� Validar nombre o ID de hoja"
-        run: |
-          if [ -n "${{ secrets.SEO_SPREADSHEET_NAME }}" ]; then
-            echo "Se recibió un nombre/ID de hoja: ${{ secrets.SEO_SPREADSHEET_NAME }}"
-          else
-            echo "No se recibió nombre/ID; se usará el valor por defecto SEO_Master_Data"
-          fi
-
       - name: "�🔐 Configurar credenciales de Google"
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || '' }}
@@ -47,8 +39,11 @@ jobs:
         env:
           SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME || '' }}
         run: |
+          set -ex
           if [ -n "${SEO_SPREADSHEET_NAME}" ]; then
+            echo "Lanzando pipeline con la hoja especificada: ${SEO_SPREADSHEET_NAME}"
             python pipeline/assistant_analysis.py --spreadsheet-name "${SEO_SPREADSHEET_NAME}"
           else
+            echo "Lanzando pipeline con el valor por defecto: SEO_Master_Data"
             python pipeline/assistant_analysis.py
           fi
