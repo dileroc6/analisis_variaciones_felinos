@@ -43,10 +43,26 @@ class SheetsManager:
         return gspread.authorize(creds)
 
     def _open_spreadsheet(self, spreadsheet_name: str) -> gspread.Spreadsheet:
+        if self._looks_like_sheet_id(spreadsheet_name):
+            return self._client.open_by_key(spreadsheet_name)
+
         try:
             return self._client.open(spreadsheet_name)
         except (gspread.SpreadsheetNotFound, gspread.exceptions.APIError):
             return self._client.open_by_key(spreadsheet_name)
+
+    @staticmethod
+    def _looks_like_sheet_id(candidate: str) -> bool:
+        """Intenta inferir si la cadena corresponde a un ID alfanumérico de Google Sheet."""
+
+        if not candidate:
+            return False
+        no_whitespace = candidate.strip()
+        if " " in no_whitespace:
+            return False
+        if any(ch in no_whitespace for ch in ("/", "?", "&")):
+            return False
+        return len(no_whitespace) >= 30
 
     def read_worksheet(self, worksheet_title: str) -> pd.DataFrame:
         """Lee una pestaña y la devuelve como DataFrame."""
