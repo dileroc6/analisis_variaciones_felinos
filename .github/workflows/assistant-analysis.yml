@@ -1,0 +1,44 @@
+name: Assistant Analysis
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/service_account.json
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          else
+            python -m pip install pandas numpy
+          fi
+
+      - name: Configure Google credentials
+        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' }}
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" > "$GOOGLE_APPLICATION_CREDENTIALS"
+
+      - name: Execute assistant analysis pipeline
+        env:
+          SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME }}
+        run: |
+          ARGS=""
+          if [ -n "${SEO_SPREADSHEET_NAME}" ]; then
+            ARGS="--spreadsheet-name \"${SEO_SPREADSHEET_NAME}\""
+          fi
+          python pipeline/assistant_analysis.py $ARGS

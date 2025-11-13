@@ -1,0 +1,285 @@
+"""Paso del pipeline que calcula variaciones semanales de rendimiento SEO y escribe los resultados en Google Sheets.
+
+Este módulo requiere un archivo hermano llamado ``sheets_manager.py`` que exponga una clase ``SheetsManager``
+con al menos la siguiente interfaz mínima:
+
+    manager = SheetsManager(spreadsheet_name="SEO_Master_Data")
+    df = manager.read_worksheet("gsc_data_daily")  # devuelve un pandas.DataFrame
+    manager.write_dataframe("analysis_raw", dataframe, replace=True)
+
+Si tu manager ofrece nombres de método distintos, ajusta las funciones auxiliares
+``fetch_dataframe`` y ``push_dataframe`` para que utilicen tu API.
+
+Para ejecutar el pipeline cada siete días, programa este script en un scheduler. Ejemplo de entrada cron:
+
+    0 3 * * 1 /usr/bin/python /path/to/assistant_analysis.py
+
+o un workflow de GitHub Actions con un disparador ``schedule`` y cron ``0 3 * * 1``.
+"""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timedelta
+from typing import Callable, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+
+from sheets_manager import SheetsManager
+
+GOOGLE_SHEET_NAME = "SEO_Master_Data"
+GSC_WORKSHEET = "gsc_data_daily"
+GA4_WORKSHEET = "ga4_data_daily"
+OUTPUT_WORKSHEET = "analysis_raw"
+SUMMARY_COLUMN = "Resumen_IA"
+
+# Bloque de configuración ----------------------------------------------------
+
+# Mapea cada métrica al nombre de columna esperado y a la función de agregación por periodo.
+GSC_METRICS = {
+    "CTR": {"column": "ctr", "agg": "mean"},
+    "Impresiones": {"column": "impressions", "agg": "sum"},
+    "Clics": {"column": "clicks", "agg": "sum"},
+    "Posicion": {"column": "position", "agg": "mean"},
+}
+
+GA4_METRICS = {
+    "Sesiones": {"column": "sessions", "agg": "sum"},
+    "Duracion": {"column": "avg_session_duration", "agg": "mean"},
+    "Rebote": {"column": "bounce_rate", "agg": "mean"},
+}
+
+DATE_COLUMN_CANDIDATES = ("date", "fecha", "Date", "Fecha")
+URL_COLUMN_CANDIDATES = ("page", "url", "URL", "Page")
+
+OUTPUT_COLUMNS = [
+    "Fecha",
+    "URL",
+    "CTR Variacion (%)",
+    "Impresiones Variacion (%)",
+    "Clics Variacion (%)",
+    "Posicion Variacion (%)",
+    "Sesiones Variacion (%)",
+    "Duracion Variacion (%)",
+    "Rebote Variacion (%)",
+    SUMMARY_COLUMN,
+]
+
+# Funciones auxiliares -------------------------------------------------------
+
+
+def fetch_dataframe(manager: SheetsManager, worksheet: str) -> pd.DataFrame:
+    """Obtiene una pestaña como pandas DataFrame usando la API disponible del manager."""
+
+    if hasattr(manager, "read_worksheet"):
+        return manager.read_worksheet(worksheet)
+    if hasattr(manager, "get_worksheet_df"):
+        return manager.get_worksheet_df(worksheet)
+    if hasattr(manager, "to_dataframe"):
+        return manager.to_dataframe(worksheet)
+    raise AttributeError(
+        "SheetsManager no expone un método de lectura compatible. "
+        "Implementa 'read_worksheet', 'get_worksheet_df' o 'to_dataframe'."
+    )
+
+
+def push_dataframe(manager: SheetsManager, worksheet: str, df: pd.DataFrame) -> None:
+    """Escribe un pandas DataFrame en Google Sheets, reemplazando el contenido previo."""
+
+    if hasattr(manager, "write_dataframe"):
+        manager.write_dataframe(worksheet, df, replace=True)
+        return
+    if hasattr(manager, "update_worksheet"):
+        manager.update_worksheet(worksheet, df, replace=True)
+        return
+    if hasattr(manager, "write_df"):
+        manager.write_df(worksheet, df, replace=True)
+        return
+    raise AttributeError(
+        "SheetsManager no expone un método de escritura compatible. "
+        "Implementa 'write_dataframe', 'update_worksheet' o 'write_df'."
+    )
+
+
+def locate_column(df: pd.DataFrame, candidates: Tuple[str, ...], kind: str) -> str:
+    """Devuelve la primera columna que coincide con los candidatos (sin sensibilidad a mayúsculas)."""
+
+    lowered = {col.lower(): col for col in df.columns}
+    for candidate in candidates:
+        if candidate.lower() in lowered:
+            return lowered[candidate.lower()]
+    raise KeyError(f"No se encontró una columna de tipo {kind}. Revisado: {candidates}")
+
+
+def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Estandariza nombres de columnas y convierte fechas."""
+
+    df = df.copy()
+    date_col = locate_column(df, DATE_COLUMN_CANDIDATES, "date")
+    url_col = locate_column(df, URL_COLUMN_CANDIDATES, "URL")
+
+    df.rename(columns={date_col: "date", url_col: "url"}, inplace=True)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date", "url"]).reset_index(drop=True)
+    df["url"] = df["url"].astype(str)
+    return df
+
+
+def compute_period_bounds(reference_date: datetime) -> Tuple[datetime, datetime, datetime, datetime]:
+    """Devuelve las fechas de inicio y fin para las ventanas recientes y previas de 7 días."""
+
+    recent_end = reference_date
+    recent_start = recent_end - timedelta(days=6)
+    previous_end = recent_start - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=6)
+    return recent_start, recent_end, previous_start, previous_end
+
+
+def aggregate_period(
+    df: pd.DataFrame,
+    metric_config: Dict[str, Dict[str, str]],
+    start: datetime,
+    end: datetime,
+) -> pd.DataFrame:
+    """Agrega las métricas del periodo usando la función configurada para cada métrica."""
+
+    mask = (df["date"] >= start) & (df["date"] <= end)
+    period_df = df.loc[mask].copy()
+    group = period_df.groupby("url", dropna=False)
+
+    data = {}
+    for metric_name, config in metric_config.items():
+        column = config["column"]
+        if column not in period_df.columns:
+            continue
+        agg_func = config.get("agg", "sum")
+        data[metric_name] = group[column].agg(agg_func)
+
+    if not data:
+        return pd.DataFrame(columns=metric_config.keys())
+
+    return pd.DataFrame(data)
+
+
+def percentage_change(current: pd.Series, previous: pd.Series) -> pd.Series:
+    """Calcula la variación porcentual gestionando divisiones entre cero."""
+
+    aligned_current, aligned_previous = current.align(previous, join="outer")
+    variation = (aligned_current - aligned_previous) / aligned_previous.replace({0: np.nan}) * 100
+    variation = variation.replace([np.inf, -np.inf], np.nan)
+    return variation
+
+
+def build_variation_table(
+    gsc_df: pd.DataFrame,
+    ga4_df: pd.DataFrame,
+    reference_date: datetime,
+) -> pd.DataFrame:
+    """Genera el DataFrame final con las variaciones porcentuales para todas las métricas."""
+
+    recent_start, recent_end, previous_start, previous_end = compute_period_bounds(reference_date)
+
+    gsc_recent = aggregate_period(gsc_df, GSC_METRICS, recent_start, recent_end)
+    gsc_previous = aggregate_period(gsc_df, GSC_METRICS, previous_start, previous_end)
+
+    ga4_recent = aggregate_period(ga4_df, GA4_METRICS, recent_start, recent_end)
+    ga4_previous = aggregate_period(ga4_df, GA4_METRICS, previous_start, previous_end)
+
+    urls = pd.Index([]).union(gsc_recent.index).union(gsc_previous.index)
+    urls = urls.union(ga4_recent.index).union(ga4_previous.index)
+
+    result = pd.DataFrame({"URL": urls})
+    result.set_index("URL", inplace=True)
+
+    metric_pairs = [
+        ("CTR", "CTR Variacion (%)"),
+        ("Impresiones", "Impresiones Variacion (%)"),
+        ("Clics", "Clics Variacion (%)"),
+        ("Posicion", "Posicion Variacion (%)"),
+        ("Sesiones", "Sesiones Variacion (%)"),
+        ("Duracion", "Duracion Variacion (%)"),
+        ("Rebote", "Rebote Variacion (%)"),
+    ]
+
+    for metric_key, column_name in metric_pairs:
+        if metric_key in GSC_METRICS:
+            current_series = gsc_recent.get(metric_key, pd.Series(dtype=float))
+            previous_series = gsc_previous.get(metric_key, pd.Series(dtype=float))
+        else:
+            current_series = ga4_recent.get(metric_key, pd.Series(dtype=float))
+            previous_series = ga4_previous.get(metric_key, pd.Series(dtype=float))
+
+        result[column_name] = percentage_change(current_series, previous_series)
+
+    result["Fecha"] = reference_date.strftime("%Y-%m-%d")
+    result[SUMMARY_COLUMN] = ""
+
+    result = result.reset_index()
+    result = result[OUTPUT_COLUMNS]
+    return result
+
+
+def determine_reference_date(gsc_df: pd.DataFrame, ga4_df: pd.DataFrame) -> datetime:
+    """Selecciona la fecha más reciente disponible entre ambos datasets."""
+
+    latest_dates = []
+    if not gsc_df.empty:
+        latest_dates.append(gsc_df["date"].max())
+    if not ga4_df.empty:
+        latest_dates.append(ga4_df["date"].max())
+    if not latest_dates:
+        raise ValueError("No se encontraron fechas en las pestañas de origen.")
+    return max(latest_dates)
+
+
+def run_pipeline(
+    spreadsheet_name: str = GOOGLE_SHEET_NAME,
+    *,
+    manager: Optional[SheetsManager] = None,
+    write_output: bool = True,
+) -> pd.DataFrame:
+    """Ejecuta el flujo leer -> calcular -> escribir opcional y devuelve el DataFrame resultado."""
+
+    manager = manager or SheetsManager(spreadsheet_name=spreadsheet_name)
+
+    gsc_df_raw = fetch_dataframe(manager, GSC_WORKSHEET)
+    ga4_df_raw = fetch_dataframe(manager, GA4_WORKSHEET)
+
+    gsc_df = normalize_dataframe(gsc_df_raw)
+    ga4_df = normalize_dataframe(ga4_df_raw)
+
+    reference_date = determine_reference_date(gsc_df, ga4_df)
+    variation_df = build_variation_table(gsc_df, ga4_df, reference_date)
+
+    if write_output:
+        push_dataframe(manager, OUTPUT_WORKSHEET, variation_df)
+    return variation_df
+
+
+def main(args: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="Calcula variaciones SEO semanales y las envía a Google Sheets.")
+    parser.add_argument(
+        "--spreadsheet-name",
+        default=GOOGLE_SHEET_NAME,
+        help="Nombre o ID de la hoja de Google que contiene los datos SEO.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Calcula las variaciones sin escribir en Google Sheets (imprime el CSV en stdout).",
+    )
+
+    parsed = parser.parse_args(args)
+
+    variation_df = run_pipeline(
+        spreadsheet_name=parsed.spreadsheet_name,
+        write_output=not parsed.dry_run,
+    )
+
+    if parsed.dry_run:
+        variation_df.to_csv(index=False)
+
+
+if __name__ == "__main__":
+    main()
