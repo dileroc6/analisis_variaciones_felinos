@@ -42,8 +42,8 @@ jobs:
           set -ex
           if [ -n "${SEO_SPREADSHEET_NAME}" ]; then
             echo "Lanzando pipeline con la hoja especificada: ${SEO_SPREADSHEET_NAME}"
-            python pipeline/assistant_analysis.py --spreadsheet-name "${SEO_SPREADSHEET_NAME}"
+            python -u pipeline/assistant_analysis.py --spreadsheet-name "${SEO_SPREADSHEET_NAME}" --verbose
           else
             echo "Lanzando pipeline con el valor por defecto: SEO_Master_Data"
-            python pipeline/assistant_analysis.py
+            python -u pipeline/assistant_analysis.py --verbose
           fi

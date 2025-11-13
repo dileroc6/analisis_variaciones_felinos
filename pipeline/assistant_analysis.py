@@ -241,13 +241,30 @@ def run_pipeline(
     *,
     manager: Optional[SheetsManager] = None,
     write_output: bool = True,
+    verbose: bool = False,
 ) -> pd.DataFrame:
     """Ejecuta el flujo leer -> calcular -> escribir opcional y devuelve el DataFrame resultado."""
 
+    if verbose:
+        print(f"Iniciando pipeline contra la hoja: {spreadsheet_name}", flush=True)
+
     manager = manager or SheetsManager(spreadsheet_name=spreadsheet_name)
+
+    if verbose:
+        print(f"Cliente listo; leyendo pestaña {GSC_WORKSHEET}", flush=True)
 
     gsc_df_raw = fetch_dataframe(manager, GSC_WORKSHEET)
     ga4_df_raw = fetch_dataframe(manager, GA4_WORKSHEET)
+
+    if verbose:
+        print(
+            f"GSC filas: {len(gsc_df_raw)} | columnas: {list(gsc_df_raw.columns)}",
+            flush=True,
+        )
+        print(
+            f"GA4 filas: {len(ga4_df_raw)} | columnas: {list(ga4_df_raw.columns)}",
+            flush=True,
+        )
 
     gsc_df = normalize_dataframe(gsc_df_raw)
     ga4_df = normalize_dataframe(ga4_df_raw)
@@ -255,8 +272,17 @@ def run_pipeline(
     reference_date = determine_reference_date(gsc_df, ga4_df)
     variation_df = build_variation_table(gsc_df, ga4_df, reference_date)
 
+    if verbose:
+        print(f"Fecha de referencia detectada: {reference_date:%Y-%m-%d}", flush=True)
+        print(f"Total de URLs analizadas: {len(variation_df)}", flush=True)
+
     if write_output:
+        if verbose:
+            print(f"Escribiendo resultados en la pestaña {OUTPUT_WORKSHEET}", flush=True)
         push_dataframe(manager, OUTPUT_WORKSHEET, variation_df)
+
+    if verbose:
+        print("Pipeline completado", flush=True)
     return variation_df
 
 
@@ -272,12 +298,18 @@ def main(args: Optional[List[str]] = None) -> None:
         action="store_true",
         help="Calcula las variaciones sin escribir en Google Sheets (imprime el CSV en stdout).",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Muestra mensajes de progreso detallados durante la ejecución.",
+    )
 
     parsed = parser.parse_args(args)
 
     variation_df = run_pipeline(
         spreadsheet_name=parsed.spreadsheet_name,
         write_output=not parsed.dry_run,
+        verbose=parsed.verbose,
     )
 
     if parsed.dry_run:
