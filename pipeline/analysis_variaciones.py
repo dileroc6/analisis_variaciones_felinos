@@ -12,7 +12,7 @@ Si tu manager ofrece nombres de método distintos, ajusta las funciones auxiliar
 
 Para ejecutar el pipeline cada siete días, programa este script en un scheduler. Ejemplo de entrada cron:
 
-    0 3 * * 1 /usr/bin/python /path/to/assistant_analysis.py
+    0 3 * * 1 /usr/bin/python /path/to/analysis_variaciones.py
 
 o un workflow de GitHub Actions con un disparador ``schedule`` y cron ``0 3 * * 1``.
 """

@@ -4,7 +4,7 @@
 
 ## Componentes principales
 
-- `pipeline/assistant_analysis.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas por periodos de siete días, calcula variaciones porcentuales por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
+- `pipeline/analysis_variaciones.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas por periodos de siete días, calcula variaciones porcentuales por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
 - `pipeline/sheets_manager.py`: módulo que autentica y comunica con Google Sheets mediante cuentas de servicio, exponiendo la clase `SheetsManager` usada por el pipeline.
 - `.github/workflows/assistant-analysis.yml`: workflow de GitHub Actions programado para ejecutar el pipeline cada lunes a las 02:00 UTC o bajo demanda mediante `workflow_dispatch`, mostrando el detalle de cada paso del script.
 
@@ -50,13 +50,13 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 
 ```bash
 python -m pip install -r requirements.txt  # o instala pandas, numpy, gspread y google-auth manualmente
-python pipeline/assistant_analysis.py --spreadsheet-name "SEO_Master_Data" --verbose
+python pipeline/analysis_variaciones.py --spreadsheet-name "SEO_Master_Data" --verbose
 ```
 
 Utiliza `--dry-run` para imprimir el CSV en consola sin escribir en la hoja:
 
 ```bash
-python pipeline/assistant_analysis.py --dry-run --verbose
+python pipeline/analysis_variaciones.py --dry-run --verbose
 ```
 
 ## Automatización
@@ -66,18 +66,18 @@ El workflow `assistant-analysis.yml`:
 1. Se ejecuta cada lunes a las 02:00 UTC (domingo 21:00 hora de Colombia, cron `0 2 * * 1`) o manualmente mediante la opción *Run workflow*.
 2. Instala dependencias desde `requirements.txt` si existe; de lo contrario instala `pandas` y `numpy`.
 3. Guarda las credenciales de Google en `service_account.json` si el secreto está configurado.
-4. Ejecuta el script `pipeline/assistant_analysis.py` en modo detallado (`--verbose`), pasando el nombre de la hoja si existe el secreto `SEO_SPREADSHEET_NAME`.
+4. Ejecuta el script `pipeline/analysis_variaciones.py` en modo detallado (`--verbose`), pasando el nombre de la hoja si existe el secreto `SEO_SPREADSHEET_NAME`.
 
 Si deseas programar una ejecución en un servidor propio, puedes usar un cron equivalente:
 
 ```
-0 3 * * 1 /usr/bin/python /ruta/al/proyecto/pipeline/assistant_analysis.py --verbose
+0 3 * * 1 /usr/bin/python /ruta/al/proyecto/pipeline/analysis_variaciones.py --verbose
 ```
 
 ## Buenas prácticas para futuras modificaciones
 
 - Documenta siempre los cambios relevantes tanto en el código como en este README.
-- Mantén `sheets_manager.py` alineado con la interfaz esperada por `assistant_analysis.py`.
+- Mantén `sheets_manager.py` alineado con la interfaz esperada por `analysis_variaciones.py`.
 - Si agregas nuevas métricas o pestañas, actualiza la sección **Flujo de trabajo** y el listado de dependencias.
 - Verifica que el workflow de GitHub Actions refleje cualquier cambio en la configuración del entorno o credenciales.
 # analisis_variaciones_felinos
