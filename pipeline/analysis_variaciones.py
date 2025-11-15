@@ -33,6 +33,7 @@ GSC_WORKSHEET = "gsc_data_daily"
 GA4_WORKSHEET = "ga4_data_daily"
 OUTPUT_WORKSHEET = "analysis_raw"
 SUMMARY_COLUMN = "Resumen_IA"
+MIN_BASELINE = 1e-6
 
 # Bloque de configuración ----------------------------------------------------
 
@@ -165,12 +166,15 @@ def aggregate_period(
     return pd.DataFrame(data)
 
 
-def percentage_change(current: pd.Series, previous: pd.Series) -> pd.Series:
-    """Calcula la variación porcentual gestionando divisiones entre cero."""
+def percentage_change(current: pd.Series, previous: pd.Series, *, min_baseline: float = MIN_BASELINE) -> pd.Series:
+    """Calcula la variación porcentual evitando resultados explosivos cuando el periodo previo es casi cero."""
 
     aligned_current, aligned_previous = current.align(previous, join="outer")
-    variation = (aligned_current - aligned_previous) / aligned_previous.replace({0: np.nan}) * 100
+    denominator = aligned_previous.replace({0: np.nan})
+    denominator = denominator.where(denominator.abs() >= min_baseline)
+    variation = (aligned_current - aligned_previous) / denominator * 100
     variation = variation.replace([np.inf, -np.inf], np.nan)
+    variation = variation.where(~denominator.isna())
     return variation
 
 
@@ -277,6 +281,13 @@ def run_pipeline(
     if verbose:
         print(f"Fecha de referencia detectada: {reference_date:%Y-%m-%d}", flush=True)
         print(f"Total de URLs analizadas: {len(variation_df)}", flush=True)
+        for column in [col for col in variation_df.columns if col.endswith("Variacion (%)")]:
+            blanks = variation_df[column].isna().sum()
+            if blanks:
+                print(
+                    f"{column}: {blanks} URLs sin variación calculable (periodo previo casi cero o sin datos)",
+                    flush=True,
+                )
 
     if write_output:
         if verbose:
