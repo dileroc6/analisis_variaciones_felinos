@@ -40,17 +40,74 @@ MAX_VARIATION_ABS = 1000.0
 
 # Mapea cada métrica al nombre de columna esperado y a la función de agregación por periodo.
 GSC_METRICS = {
-    "CTR": {"column": "ctr", "agg": "mean", "min_baseline": 0.005, "max_abs_variation": 500.0},
-    "Impresiones": {"column": "impressions", "agg": "sum", "min_baseline": 10.0},
-    "Clics": {"column": "clicks", "agg": "sum", "min_baseline": 5.0},
-    "Posicion": {"column": "position", "agg": "mean", "min_baseline": 0.25, "max_abs_variation": 300.0},
+    "CTR": {
+        "column": "ctr",
+        "agg": "mean",
+        "change": "difference",
+        "min_baseline": 0.0025,
+        "multiplier": 100.0,
+        "label": "CTR Δ (p.p.)",
+    },
+    "Impresiones": {
+        "column": "impressions",
+        "agg": "sum",
+        "change": "percentage",
+        "min_baseline": 10.0,
+        "max_abs_variation": 1000.0,
+        "label": "Impresiones Variacion (%)",
+    },
+    "Clics": {
+        "column": "clicks",
+        "agg": "sum",
+        "change": "percentage",
+        "min_baseline": 5.0,
+        "max_abs_variation": 1000.0,
+        "label": "Clics Variacion (%)",
+    },
+    "Posicion": {
+        "column": "position",
+        "agg": "mean",
+        "change": "difference",
+        "min_baseline": 0.25,
+        "label": "Posicion Δ",
+    },
 }
 
 GA4_METRICS = {
-    "Sesiones": {"column": "sessions", "agg": "sum", "min_baseline": 5.0},
-    "Duracion": {"column": "avg_session_duration", "agg": "mean", "min_baseline": 1.0, "max_abs_variation": 500.0},
-    "Rebote": {"column": "bounce_rate", "agg": "mean", "min_baseline": 0.01, "max_abs_variation": 500.0},
+    "Sesiones": {
+        "column": "sessions",
+        "agg": "sum",
+        "change": "percentage",
+        "min_baseline": 5.0,
+        "max_abs_variation": 1000.0,
+        "label": "Sesiones Variacion (%)",
+    },
+    "Duracion": {
+        "column": "avg_session_duration",
+        "agg": "mean",
+        "change": "difference",
+        "min_baseline": 1.0,
+        "label": "Duracion Δ",
+    },
+    "Rebote": {
+        "column": "bounce_rate",
+        "agg": "mean",
+        "change": "difference",
+        "min_baseline": 0.01,
+        "multiplier": 100.0,
+        "label": "Rebote Δ (p.p.)",
+    },
 }
+
+METRIC_SEQUENCE = [
+    ("CTR", GSC_METRICS),
+    ("Impresiones", GSC_METRICS),
+    ("Clics", GSC_METRICS),
+    ("Posicion", GSC_METRICS),
+    ("Sesiones", GA4_METRICS),
+    ("Duracion", GA4_METRICS),
+    ("Rebote", GA4_METRICS),
+]
 
 DATE_COLUMN_CANDIDATES = ("date", "fecha", "Date", "Fecha")
 URL_COLUMN_CANDIDATES = ("page", "url", "URL", "Page")
@@ -58,13 +115,13 @@ URL_COLUMN_CANDIDATES = ("page", "url", "URL", "Page")
 OUTPUT_COLUMNS = [
     "Periodo Analizado",
     "URL",
-    "CTR Variacion (%)",
-    "Impresiones Variacion (%)",
-    "Clics Variacion (%)",
-    "Posicion Variacion (%)",
-    "Sesiones Variacion (%)",
-    "Duracion Variacion (%)",
-    "Rebote Variacion (%)",
+    GSC_METRICS["CTR"]["label"],
+    GSC_METRICS["Impresiones"]["label"],
+    GSC_METRICS["Clics"]["label"],
+    GSC_METRICS["Posicion"]["label"],
+    GA4_METRICS["Sesiones"]["label"],
+    GA4_METRICS["Duracion"]["label"],
+    GA4_METRICS["Rebote"]["label"],
     SUMMARY_COLUMN,
 ]
 
@@ -187,6 +244,23 @@ def percentage_change(
     return variation
 
 
+def difference_change(
+    current: pd.Series,
+    previous: pd.Series,
+    *,
+    min_baseline: float = MIN_BASELINE,
+    multiplier: float = 1.0,
+) -> pd.Series:
+    """Calcula la diferencia directa entre periodos, opcionalmente escalada."""
+
+    aligned_current, aligned_previous = current.align(previous, join="outer")
+    baseline = aligned_previous.abs().combine(aligned_current.abs(), func=max)
+    baseline = baseline.where(baseline >= min_baseline)
+    diff = (aligned_current - aligned_previous) * multiplier
+    diff = diff.where(~baseline.isna())
+    return diff
+
+
 def build_variation_table(
     gsc_df: pd.DataFrame,
     ga4_df: pd.DataFrame,
@@ -208,34 +282,35 @@ def build_variation_table(
     result = pd.DataFrame({"URL": urls})
     result.set_index("URL", inplace=True)
 
-    metric_pairs = [
-        ("CTR", "CTR Variacion (%)"),
-        ("Impresiones", "Impresiones Variacion (%)"),
-        ("Clics", "Clics Variacion (%)"),
-        ("Posicion", "Posicion Variacion (%)"),
-        ("Sesiones", "Sesiones Variacion (%)"),
-        ("Duracion", "Duracion Variacion (%)"),
-        ("Rebote", "Rebote Variacion (%)"),
-    ]
-
-    for metric_key, column_name in metric_pairs:
-        if metric_key in GSC_METRICS:
+    for metric_key, source in METRIC_SEQUENCE:
+        config = source[metric_key]
+        column_name = config["label"]
+        if source is GSC_METRICS:
             current_series = gsc_recent.get(metric_key, pd.Series(dtype=float))
             previous_series = gsc_previous.get(metric_key, pd.Series(dtype=float))
-            metric_config = GSC_METRICS[metric_key]
         else:
             current_series = ga4_recent.get(metric_key, pd.Series(dtype=float))
             previous_series = ga4_previous.get(metric_key, pd.Series(dtype=float))
-            metric_config = GA4_METRICS[metric_key]
 
-        min_baseline = metric_config.get("min_baseline", MIN_BASELINE)
-        max_abs_variation = metric_config.get("max_abs_variation", MAX_VARIATION_ABS)
-        result[column_name] = percentage_change(
-            current_series,
-            previous_series,
-            min_baseline=min_baseline,
-            max_abs_variation=max_abs_variation,
-        )
+        change_mode = config.get("change", "percentage")
+        min_baseline = config.get("min_baseline", MIN_BASELINE)
+
+        if change_mode == "difference":
+            multiplier = config.get("multiplier", 1.0)
+            result[column_name] = difference_change(
+                current_series,
+                previous_series,
+                min_baseline=min_baseline,
+                multiplier=multiplier,
+            )
+        else:
+            max_abs_variation = config.get("max_abs_variation", MAX_VARIATION_ABS)
+            result[column_name] = percentage_change(
+                current_series,
+                previous_series,
+                min_baseline=min_baseline,
+                max_abs_variation=max_abs_variation,
+            )
 
     recent_label = f"{recent_start:%Y-%m-%d} a {recent_end:%Y-%m-%d}"
     previous_label = f"{previous_start:%Y-%m-%d} a {previous_end:%Y-%m-%d}"

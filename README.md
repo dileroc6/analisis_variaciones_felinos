@@ -4,7 +4,7 @@
 
 ## Componentes principales
 
-- `pipeline/analysis_variaciones.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas por periodos de siete días, calcula variaciones porcentuales por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
+- `pipeline/analysis_variaciones.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas por periodos de siete días, calcula variaciones o diferencias por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
 - `pipeline/sheets_manager.py`: módulo que autentica y comunica con Google Sheets mediante cuentas de servicio, exponiendo la clase `SheetsManager` usada por el pipeline.
 - `.github/workflows/assistant-analysis.yml`: workflow de GitHub Actions programado para ejecutar el pipeline cada lunes a las 02:00 UTC o bajo demanda mediante `workflow_dispatch`, mostrando el detalle de cada paso del script.
 
@@ -14,8 +14,13 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 
 - `Periodo Analizado`: intervalo reciente y su comparación, por ejemplo `2025-11-04 a 2025-11-10 (vs 2025-10-28 a 2025-11-03)`.
 - `URL`: página evaluada.
-- Variaciones porcentuales de CTR, Impresiones, Clics, Posición, Sesiones, Duración y Rebote.
-- Las variaciones quedan vacías cuando el valor del periodo previo es muy bajo o el cambio supera ±1000 %, evitando cifras irreales.
+- `CTR Δ (p.p.)`: diferencia en puntos porcentuales del CTR medio.
+- `Impresiones Variacion (%)` y `Clics Variacion (%)`: cambios porcentuales sobre totales.
+- `Posicion Δ`: diferencia absoluta en la posición promedio (negativo indica mejora si la posición baja).
+- `Sesiones Variacion (%)`: cambio porcentual sobre sesiones totales.
+- `Duracion Δ`: diferencia en duración promedio (mismas unidades que la fuente).
+- `Rebote Δ (p.p.)`: diferencia en puntos porcentuales de la tasa de rebote.
+- Las celdas se dejan en blanco cuando los valores de referencia son muy bajos o el cambio supera los umbrales definidos, evitando cifras irreales.
 - `Resumen_IA`: campo vacío listo para que un asistente genere recomendaciones.
 
 ## Flujo de trabajo
@@ -26,7 +31,7 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 4. Se convierten las métricas en numéricas (cuando llegan como texto) y se calculan agregados de los últimos 7 días y del periodo de 7 días inmediatamente anterior para las métricas:
    - CTR, impresiones, clics y posición media (GSC).
    - Sesiones, duración media y tasa de rebote (GA4).
-5. Se calcula la variación porcentual por URL entre ambos periodos, aplicando umbrales por métrica para descartar divisores diminutos y recortes de ±1000 %. Después se compone la etiqueta de `Periodo Analizado` para documentar el intervalo comparado.
+5. Se calcula, por métrica, el cambio correspondiente (porcentaje para valores acumulados, diferencia para promedios) aplicando umbrales que descartan divisores diminutos y recortan valores atípicos. Después se compone la etiqueta de `Periodo Analizado` para documentar el intervalo comparado.
 6. Se escribe el resultado en `analysis_raw`, reemplazando datos previos si existen.
 7. Se agrega la columna vacía `Resumen_IA` para que otras tareas completen las recomendaciones.
 
