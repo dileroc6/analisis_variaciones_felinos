@@ -33,22 +33,23 @@ GSC_WORKSHEET = "gsc_data_daily"
 GA4_WORKSHEET = "ga4_data_daily"
 OUTPUT_WORKSHEET = "analysis_raw"
 SUMMARY_COLUMN = "Resumen_IA"
-MIN_BASELINE = 1e-6
+MIN_BASELINE = 1.0
+MAX_VARIATION_ABS = 1000.0
 
 # Bloque de configuración ----------------------------------------------------
 
 # Mapea cada métrica al nombre de columna esperado y a la función de agregación por periodo.
 GSC_METRICS = {
-    "CTR": {"column": "ctr", "agg": "mean"},
-    "Impresiones": {"column": "impressions", "agg": "sum"},
-    "Clics": {"column": "clicks", "agg": "sum"},
-    "Posicion": {"column": "position", "agg": "mean"},
+    "CTR": {"column": "ctr", "agg": "mean", "min_baseline": 0.005, "max_abs_variation": 500.0},
+    "Impresiones": {"column": "impressions", "agg": "sum", "min_baseline": 10.0},
+    "Clics": {"column": "clicks", "agg": "sum", "min_baseline": 5.0},
+    "Posicion": {"column": "position", "agg": "mean", "min_baseline": 0.25, "max_abs_variation": 300.0},
 }
 
 GA4_METRICS = {
-    "Sesiones": {"column": "sessions", "agg": "sum"},
-    "Duracion": {"column": "avg_session_duration", "agg": "mean"},
-    "Rebote": {"column": "bounce_rate", "agg": "mean"},
+    "Sesiones": {"column": "sessions", "agg": "sum", "min_baseline": 5.0},
+    "Duracion": {"column": "avg_session_duration", "agg": "mean", "min_baseline": 1.0, "max_abs_variation": 500.0},
+    "Rebote": {"column": "bounce_rate", "agg": "mean", "min_baseline": 0.01, "max_abs_variation": 500.0},
 }
 
 DATE_COLUMN_CANDIDATES = ("date", "fecha", "Date", "Fecha")
@@ -166,8 +167,14 @@ def aggregate_period(
     return pd.DataFrame(data)
 
 
-def percentage_change(current: pd.Series, previous: pd.Series, *, min_baseline: float = MIN_BASELINE) -> pd.Series:
-    """Calcula la variación porcentual evitando resultados explosivos cuando el periodo previo es casi cero."""
+def percentage_change(
+    current: pd.Series,
+    previous: pd.Series,
+    *,
+    min_baseline: float = MIN_BASELINE,
+    max_abs_variation: float = MAX_VARIATION_ABS,
+) -> pd.Series:
+    """Calcula la variación porcentual evitando resultados extremos cuando la base es muy pequeña."""
 
     aligned_current, aligned_previous = current.align(previous, join="outer")
     denominator = aligned_previous.replace({0: np.nan})
@@ -175,6 +182,8 @@ def percentage_change(current: pd.Series, previous: pd.Series, *, min_baseline: 
     variation = (aligned_current - aligned_previous) / denominator * 100
     variation = variation.replace([np.inf, -np.inf], np.nan)
     variation = variation.where(~denominator.isna())
+    if max_abs_variation is not None:
+        variation = variation.where(variation.abs() <= max_abs_variation)
     return variation
 
 
@@ -213,11 +222,20 @@ def build_variation_table(
         if metric_key in GSC_METRICS:
             current_series = gsc_recent.get(metric_key, pd.Series(dtype=float))
             previous_series = gsc_previous.get(metric_key, pd.Series(dtype=float))
+            metric_config = GSC_METRICS[metric_key]
         else:
             current_series = ga4_recent.get(metric_key, pd.Series(dtype=float))
             previous_series = ga4_previous.get(metric_key, pd.Series(dtype=float))
+            metric_config = GA4_METRICS[metric_key]
 
-        result[column_name] = percentage_change(current_series, previous_series)
+        min_baseline = metric_config.get("min_baseline", MIN_BASELINE)
+        max_abs_variation = metric_config.get("max_abs_variation", MAX_VARIATION_ABS)
+        result[column_name] = percentage_change(
+            current_series,
+            previous_series,
+            min_baseline=min_baseline,
+            max_abs_variation=max_abs_variation,
+        )
 
     recent_label = f"{recent_start:%Y-%m-%d} a {recent_end:%Y-%m-%d}"
     previous_label = f"{previous_start:%Y-%m-%d} a {previous_end:%Y-%m-%d}"

@@ -15,7 +15,7 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 - `Periodo Analizado`: intervalo reciente y su comparación, por ejemplo `2025-11-04 a 2025-11-10 (vs 2025-10-28 a 2025-11-03)`.
 - `URL`: página evaluada.
 - Variaciones porcentuales de CTR, Impresiones, Clics, Posición, Sesiones, Duración y Rebote.
-- Las variaciones quedan vacías cuando el valor del periodo previo es prácticamente cero para evitar explotaciones numéricas.
+- Las variaciones quedan vacías cuando el valor del periodo previo es muy bajo o el cambio supera ±1000 %, evitando cifras irreales.
 - `Resumen_IA`: campo vacío listo para que un asistente genere recomendaciones.
 
 ## Flujo de trabajo
@@ -26,7 +26,7 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 4. Se convierten las métricas en numéricas (cuando llegan como texto) y se calculan agregados de los últimos 7 días y del periodo de 7 días inmediatamente anterior para las métricas:
    - CTR, impresiones, clics y posición media (GSC).
    - Sesiones, duración media y tasa de rebote (GA4).
-5. Se calcula la variación porcentual por URL entre ambos periodos (omitiendo casos en los que el periodo previo es casi cero) y se compone la etiqueta de `Periodo Analizado` para documentar el intervalo comparado.
+5. Se calcula la variación porcentual por URL entre ambos periodos, aplicando umbrales por métrica para descartar divisores diminutos y recortes de ±1000 %. Después se compone la etiqueta de `Periodo Analizado` para documentar el intervalo comparado.
 6. Se escribe el resultado en `analysis_raw`, reemplazando datos previos si existen.
 7. Se agrega la columna vacía `Resumen_IA` para que otras tareas completen las recomendaciones.
 
