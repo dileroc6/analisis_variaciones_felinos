@@ -46,7 +46,7 @@ GSC_METRICS = {
         "change": "difference",
         "min_baseline": 0.0025,
         "multiplier": 100.0,
-        "label": "CTR Δ (p.p.)",
+        "label": "CTR (puntos porcentuales)",
         "max_abs_difference": 50.0,
         "decimals": 2,
     },
@@ -56,7 +56,7 @@ GSC_METRICS = {
         "change": "percentage",
         "min_baseline": 10.0,
         "max_abs_variation": 1000.0,
-        "label": "Impresiones Variacion (%)",
+        "label": "Impresiones (variacion %)",
         "decimals": 2,
     },
     "Clics": {
@@ -65,7 +65,7 @@ GSC_METRICS = {
         "change": "percentage",
         "min_baseline": 5.0,
         "max_abs_variation": 1000.0,
-        "label": "Clics Variacion (%)",
+        "label": "Clics (variacion %)",
         "decimals": 2,
     },
     "Posicion": {
@@ -73,7 +73,7 @@ GSC_METRICS = {
         "agg": "mean",
         "change": "difference",
         "min_baseline": 0.25,
-        "label": "Posicion Δ",
+        "label": "Posicion promedio (variacion)",
         "max_abs_difference": 20.0,
         "decimals": 2,
     },
@@ -86,7 +86,7 @@ GA4_METRICS = {
         "change": "percentage",
         "min_baseline": 5.0,
         "max_abs_variation": 1000.0,
-        "label": "Sesiones Variacion (%)",
+        "label": "Sesiones (variacion %)",
         "decimals": 2,
     },
     "Duracion": {
@@ -94,7 +94,7 @@ GA4_METRICS = {
         "agg": "mean",
         "change": "difference",
         "min_baseline": 1.0,
-        "label": "Duracion Δ",
+        "label": "Duracion promedio (variacion)",
         "max_abs_difference": 3600.0,
         "decimals": 2,
     },
@@ -104,7 +104,7 @@ GA4_METRICS = {
         "change": "difference",
         "min_baseline": 0.01,
         "multiplier": 100.0,
-        "label": "Rebote Δ (p.p.)",
+        "label": "Rebote (puntos porcentuales)",
         "max_abs_difference": 50.0,
         "decimals": 2,
     },
@@ -123,6 +123,9 @@ METRIC_SEQUENCE = [
 DATE_COLUMN_CANDIDATES = ("date", "fecha", "Date", "Fecha")
 URL_COLUMN_CANDIDATES = ("page", "url", "URL", "Page")
 
+RECOMMENDATION_COLUMN = "Recomendacion"
+ACTION_COLUMN = "Ejecutar_Accion"
+
 OUTPUT_COLUMNS = [
     "Periodo Analizado",
     "URL",
@@ -134,6 +137,8 @@ OUTPUT_COLUMNS = [
     GA4_METRICS["Duracion"]["label"],
     GA4_METRICS["Rebote"]["label"],
     SUMMARY_COLUMN,
+    RECOMMENDATION_COLUMN,
+    ACTION_COLUMN,
 ]
 
 # Funciones auxiliares -------------------------------------------------------
@@ -335,6 +340,8 @@ def build_variation_table(
     previous_label = f"{previous_start:%Y-%m-%d} a {previous_end:%Y-%m-%d}"
     result["Periodo Analizado"] = f"{recent_label} (vs {previous_label})"
     result[SUMMARY_COLUMN] = ""
+    result[RECOMMENDATION_COLUMN] = ""
+    result[ACTION_COLUMN] = ""
 
     result = result.reset_index()
     result = result[OUTPUT_COLUMNS]

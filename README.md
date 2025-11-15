@@ -14,14 +14,15 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 
 - `Periodo Analizado`: intervalo reciente y su comparación, por ejemplo `2025-11-04 a 2025-11-10 (vs 2025-10-28 a 2025-11-03)`.
 - `URL`: página evaluada.
-- `CTR Δ (p.p.)`: diferencia en puntos porcentuales del CTR medio (acotada a ±50 p.p.).
-- `Impresiones Variacion (%)` y `Clics Variacion (%)`: cambios porcentuales sobre totales.
-- `Posicion Δ`: diferencia absoluta en la posición promedio (negativo indica mejora si la posición baja, acotada a ±20 posiciones).
-- `Sesiones Variacion (%)`: cambio porcentual sobre sesiones totales.
-- `Duracion Δ`: diferencia en duración promedio (mismas unidades que la fuente, acotada a ±3600 segundos).
-- `Rebote Δ (p.p.)`: diferencia en puntos porcentuales de la tasa de rebote (acotada a ±50 p.p.).
+- `CTR (puntos porcentuales)`: diferencia en puntos porcentuales del CTR medio (acotada a ±50 p.p.).
+- `Impresiones (variacion %)` y `Clics (variacion %)`: cambios porcentuales sobre totales.
+- `Posicion promedio (variacion)`: diferencia absoluta en la posición promedio (negativo indica mejora si la posición baja, acotada a ±20 posiciones).
+- `Sesiones (variacion %)`: cambio porcentual sobre sesiones totales.
+- `Duracion promedio (variacion)`: diferencia en duración promedio (mismas unidades que la fuente, acotada a ±3600 segundos).
+- `Rebote (puntos porcentuales)`: diferencia en puntos porcentuales de la tasa de rebote (acotada a ±50 p.p.).
 - Las celdas se dejan en blanco cuando los valores de referencia son muy bajos o el cambio supera los umbrales definidos (+/-1000 % en cambios relativos o los límites de diferencia señalados), evitando cifras irreales.
 - `Resumen_IA`: campo vacío listo para que un asistente genere recomendaciones.
+- `Recomendacion` y `Ejecutar_Accion`: columnas adicionales para detallar la acción sugerida y si debe ejecutarse.
 
 ## Flujo de trabajo
 
@@ -33,7 +34,7 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
    - Sesiones, duración media y tasa de rebote (GA4).
 5. Se calcula, por métrica, el cambio correspondiente (porcentaje para valores acumulados, diferencia para promedios) aplicando umbrales que descartan divisores diminutos y recortan valores atípicos. Después se compone la etiqueta de `Periodo Analizado` para documentar el intervalo comparado.
 6. Se escribe el resultado en `analysis_raw`, reemplazando datos previos si existen.
-7. Se agrega la columna vacía `Resumen_IA` para que otras tareas completen las recomendaciones.
+7. Se agregan las columnas vacías `Resumen_IA`, `Recomendacion` y `Ejecutar_Accion` para que otras tareas completen recomendaciones y definan el siguiente paso.
 
 ### Parámetros del script
 
