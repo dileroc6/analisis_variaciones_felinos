@@ -14,13 +14,13 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 
 - `Periodo Analizado`: intervalo reciente y su comparación, por ejemplo `2025-11-04 a 2025-11-10 (vs 2025-10-28 a 2025-11-03)`.
 - `URL`: página evaluada.
-- `CTR Δ (p.p.)`: diferencia en puntos porcentuales del CTR medio.
+- `CTR Δ (p.p.)`: diferencia en puntos porcentuales del CTR medio (acotada a ±50 p.p.).
 - `Impresiones Variacion (%)` y `Clics Variacion (%)`: cambios porcentuales sobre totales.
-- `Posicion Δ`: diferencia absoluta en la posición promedio (negativo indica mejora si la posición baja).
+- `Posicion Δ`: diferencia absoluta en la posición promedio (negativo indica mejora si la posición baja, acotada a ±20 posiciones).
 - `Sesiones Variacion (%)`: cambio porcentual sobre sesiones totales.
-- `Duracion Δ`: diferencia en duración promedio (mismas unidades que la fuente).
-- `Rebote Δ (p.p.)`: diferencia en puntos porcentuales de la tasa de rebote.
-- Las celdas se dejan en blanco cuando los valores de referencia son muy bajos o el cambio supera los umbrales definidos, evitando cifras irreales.
+- `Duracion Δ`: diferencia en duración promedio (mismas unidades que la fuente, acotada a ±3600 segundos).
+- `Rebote Δ (p.p.)`: diferencia en puntos porcentuales de la tasa de rebote (acotada a ±50 p.p.).
+- Las celdas se dejan en blanco cuando los valores de referencia son muy bajos o el cambio supera los umbrales definidos (+/-1000 % en cambios relativos o los límites de diferencia señalados), evitando cifras irreales.
 - `Resumen_IA`: campo vacío listo para que un asistente genere recomendaciones.
 
 ## Flujo de trabajo

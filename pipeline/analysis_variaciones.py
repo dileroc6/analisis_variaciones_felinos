@@ -47,6 +47,8 @@ GSC_METRICS = {
         "min_baseline": 0.0025,
         "multiplier": 100.0,
         "label": "CTR Δ (p.p.)",
+        "max_abs_difference": 50.0,
+        "decimals": 2,
     },
     "Impresiones": {
         "column": "impressions",
@@ -55,6 +57,7 @@ GSC_METRICS = {
         "min_baseline": 10.0,
         "max_abs_variation": 1000.0,
         "label": "Impresiones Variacion (%)",
+        "decimals": 2,
     },
     "Clics": {
         "column": "clicks",
@@ -63,6 +66,7 @@ GSC_METRICS = {
         "min_baseline": 5.0,
         "max_abs_variation": 1000.0,
         "label": "Clics Variacion (%)",
+        "decimals": 2,
     },
     "Posicion": {
         "column": "position",
@@ -70,6 +74,8 @@ GSC_METRICS = {
         "change": "difference",
         "min_baseline": 0.25,
         "label": "Posicion Δ",
+        "max_abs_difference": 20.0,
+        "decimals": 2,
     },
 }
 
@@ -81,6 +87,7 @@ GA4_METRICS = {
         "min_baseline": 5.0,
         "max_abs_variation": 1000.0,
         "label": "Sesiones Variacion (%)",
+        "decimals": 2,
     },
     "Duracion": {
         "column": "avg_session_duration",
@@ -88,6 +95,8 @@ GA4_METRICS = {
         "change": "difference",
         "min_baseline": 1.0,
         "label": "Duracion Δ",
+        "max_abs_difference": 3600.0,
+        "decimals": 2,
     },
     "Rebote": {
         "column": "bounce_rate",
@@ -96,6 +105,8 @@ GA4_METRICS = {
         "min_baseline": 0.01,
         "multiplier": 100.0,
         "label": "Rebote Δ (p.p.)",
+        "max_abs_difference": 50.0,
+        "decimals": 2,
     },
 }
 
@@ -250,6 +261,7 @@ def difference_change(
     *,
     min_baseline: float = MIN_BASELINE,
     multiplier: float = 1.0,
+    max_abs_difference: Optional[float] = None,
 ) -> pd.Series:
     """Calcula la diferencia directa entre periodos, opcionalmente escalada."""
 
@@ -258,6 +270,8 @@ def difference_change(
     baseline = baseline.where(baseline >= min_baseline)
     diff = (aligned_current - aligned_previous) * multiplier
     diff = diff.where(~baseline.isna())
+    if max_abs_difference is not None:
+        diff = diff.where(diff.abs() <= max_abs_difference)
     return diff
 
 
@@ -297,11 +311,13 @@ def build_variation_table(
 
         if change_mode == "difference":
             multiplier = config.get("multiplier", 1.0)
+            max_abs_difference = config.get("max_abs_difference")
             result[column_name] = difference_change(
                 current_series,
                 previous_series,
                 min_baseline=min_baseline,
                 multiplier=multiplier,
+                max_abs_difference=max_abs_difference,
             )
         else:
             max_abs_variation = config.get("max_abs_variation", MAX_VARIATION_ABS)
@@ -311,6 +327,9 @@ def build_variation_table(
                 min_baseline=min_baseline,
                 max_abs_variation=max_abs_variation,
             )
+        decimals = config.get("decimals")
+        if decimals is not None:
+            result[column_name] = result[column_name].round(decimals)
 
     recent_label = f"{recent_start:%Y-%m-%d} a {recent_end:%Y-%m-%d}"
     previous_label = f"{previous_start:%Y-%m-%d} a {previous_end:%Y-%m-%d}"
