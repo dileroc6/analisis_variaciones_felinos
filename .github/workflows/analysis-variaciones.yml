@@ -36,14 +36,94 @@ jobs:
           echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
 
       - name: "🤖 Ejecutar pipeline de análisis"
+        id: run_pipeline
         env:
           SEO_SPREADSHEET_NAME: ${{ secrets.SEO_SPREADSHEET_NAME || '' }}
         run: |
-          set -ex
+          set -o pipefail
+          SUMMARY_FILE=pipeline_summary.log  # almacenamos la salida para resumirla en Telegram
+          : > "$SUMMARY_FILE"
+
           if [ -n "${SEO_SPREADSHEET_NAME}" ]; then
-            echo "Lanzando pipeline con la hoja especificada: ${SEO_SPREADSHEET_NAME}"
-            python -u pipeline/analysis_variaciones.py --spreadsheet-name "${SEO_SPREADSHEET_NAME}" --verbose
+            echo "Lanzando pipeline con la hoja especificada: ${SEO_SPREADSHEET_NAME}" | tee -a "$SUMMARY_FILE"
+            CMD=(python -u pipeline/analysis_variaciones.py --spreadsheet-name "${SEO_SPREADSHEET_NAME}" --verbose)
           else
-            echo "Lanzando pipeline con el valor por defecto: SEO_Master_Data"
-            python -u pipeline/analysis_variaciones.py --verbose
+            echo "Lanzando pipeline con el valor por defecto: SEO_Master_Data" | tee -a "$SUMMARY_FILE"
+            CMD=(python -u pipeline/analysis_variaciones.py --verbose)
           fi
+
+          "${CMD[@]}" 2>&1 | tee -a "$SUMMARY_FILE"
+          PIPE_EXIT=${PIPESTATUS[0]}
+
+          VARIATION_COUNT=$(grep -E "Total de URLs analizadas:" "$SUMMARY_FILE" | tail -n1 | awk -F': ' '{print $2}' | tr -d '[:space:]')
+          EXECUTED_AT=$(TZ='America/Bogota' date '+%Y-%m-%d %H:%M:%S %Z')
+
+          echo "variation_count=${VARIATION_COUNT:-0}" >> "$GITHUB_OUTPUT"
+          echo "executed_at=${EXECUTED_AT}" >> "$GITHUB_OUTPUT"
+
+          exit "$PIPE_EXIT"
+
+      - name: "📣 Notificar por Telegram"
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SUMMARY_FILE: pipeline_summary.log
+          VARIATION_COUNT: ${{ steps.run_pipeline.outputs.variation_count }}
+          EXECUTED_AT: ${{ steps.run_pipeline.outputs.executed_at }}
+        run: |
+          TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+          TELEGRAM_CHAT_ID='${{ secrets.TELEGRAM_CHAT_ID }}'
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram no configurado; se omite la notificación."
+            exit 0
+          fi
+          export TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          token = os.environ["TELEGRAM_BOT_TOKEN"]
+          chat_id = os.environ["TELEGRAM_CHAT_ID"]
+            status_raw = os.environ.get("JOB_STATUS", "desconocido")
+            variation_count = os.environ.get("VARIATION_COUNT") or "N/D"
+            executed_at = os.environ.get("EXECUTED_AT") or "N/D"
+            summary_path = os.environ.get("SUMMARY_FILE")
+
+            status_lower = status_raw.lower()
+            if status_lower == "success":
+              headline = "Ejecución completada correctamente."
+            elif status_lower == "failure":
+              headline = "Ejecución con errores."
+            else:
+              headline = f"Ejecución con estado: {status_raw}"
+
+            tail = ""
+            if status_lower != "success":
+              tail = "No se generó salida del pipeline."
+              if summary_path and os.path.exists(summary_path):
+                with open(summary_path, "r", encoding="utf-8", errors="replace") as handle:
+                  lines = handle.readlines()
+                if lines:
+                  tail = "".join(lines[-40:]).strip() or tail
+
+            message_lines = [
+              "Pipeline variaciones felinos",
+              headline,
+              f"Hora Bogotá: {executed_at}",
+              f"Variaciones registradas: {variation_count}",
+            ]
+
+            message = "\n".join(message_lines)
+            if status_lower != "success" and tail:
+              message += f"\n\nÚltimas líneas:\n{tail}"
+          payload = json.dumps({
+            "chat_id": chat_id,
+            "text": message[:4000],
+          }).encode()
+
+          url = f"https://api.telegram.org/bot{token}/sendMessage"
+          request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+          with urllib.request.urlopen(request) as response:
+            print(f"Telegram respondio con estado {response.status}")
+          PY
