@@ -107,8 +107,8 @@ jobs:
                   if lines:
                       tail = "".join(lines[-40:]).strip() or tail
 
-          message_lines = [
-              "Pipeline variaciones felinos",
+            message_lines = [
+              "🚀 Pipeline variaciones felinos",
               headline,
               f"Hora Bogotá: {executed_at}",
               f"Variaciones registradas: {variation_count}",
