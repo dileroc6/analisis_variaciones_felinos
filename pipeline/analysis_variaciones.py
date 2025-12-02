@@ -1,4 +1,4 @@
-"""Paso del pipeline que calcula variaciones semanales de rendimiento SEO y escribe los resultados en Google Sheets.
+"""Paso del pipeline que calcula variaciones quincenales de rendimiento SEO y escribe los resultados en Google Sheets.
 
 Este módulo requiere un archivo hermano llamado ``sheets_manager.py`` que exponga una clase ``SheetsManager``
 con al menos la siguiente interfaz mínima:
@@ -10,7 +10,7 @@ con al menos la siguiente interfaz mínima:
 Si tu manager ofrece nombres de método distintos, ajusta las funciones auxiliares
 ``fetch_dataframe`` y ``push_dataframe`` para que utilicen tu API.
 
-Para ejecutar el pipeline cada siete días, programa este script en un scheduler. Ejemplo de entrada cron:
+Para ejecutar el pipeline en un scheduler, por ejemplo semanal, usa una entrada cron como:
 
     0 3 * * 1 /usr/bin/python /path/to/analysis_variaciones.py
 
@@ -205,9 +205,10 @@ def compute_period_bounds(reference_date: datetime) -> Tuple[datetime, datetime,
     """Devuelve las fechas de inicio y fin para las ventanas recientes y previas de 7 días."""
 
     recent_end = reference_date
-    recent_start = recent_end - timedelta(days=6)
+    window = timedelta(days=13)
+    recent_start = recent_end - window
     previous_end = recent_start - timedelta(days=1)
-    previous_start = previous_end - timedelta(days=6)
+    previous_start = previous_end - window
     return recent_start, recent_end, previous_start, previous_end
 
 

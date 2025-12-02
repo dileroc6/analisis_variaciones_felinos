@@ -1,18 +1,19 @@
 # Pipeline de Análisis de Variaciones SEO
 
- Este proyecto automatiza el cálculo semanal de variaciones en métricas SEO y de analítica web a partir de datos almacenados en la hoja de cálculo **SEO_Master_Data**. El resultado se publica en la pestaña `analysis_raw`, que actúa como insumo para el Asistente SEO basado en OpenAI.
+ Este proyecto automatiza el cálculo quincenal de variaciones en métricas SEO y de analítica web a partir de datos almacenados en la hoja de cálculo **SEO_Master_Data**. El resultado se publica en la pestaña `analysis_raw`, que actúa como insumo para el Asistente SEO basado en OpenAI.
 
 ## Componentes principales
 
-- `pipeline/analysis_variaciones.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas por periodos de siete días, calcula variaciones o diferencias por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
+- `pipeline/analysis_variaciones.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas en ventanas consecutivas de catorce días, calcula variaciones o diferencias por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
 - `pipeline/sheets_manager.py`: módulo que autentica y comunica con Google Sheets mediante cuentas de servicio, exponiendo la clase `SheetsManager` usada por el pipeline.
-- `.github/workflows/assistant-analysis.yml`: workflow de GitHub Actions programado para ejecutar el pipeline cada lunes a las 02:00 UTC o bajo demanda mediante `workflow_dispatch`, mostrando el detalle de cada paso del script.
+- `pipeline/telegram_notifier.py`: utilitario que arma un resumen ejecutivo de la corrida y lo envía por Telegram cuando los secretos del bot están configurados.
+- `.github/workflows/analysis-variaciones.yml`: workflow de GitHub Actions programado para ejecutar el pipeline cada lunes a las 08:15 UTC (03:15 hora de Bogotá) o bajo demanda mediante `workflow_dispatch`, mostrando el detalle de cada paso y notificando el resultado por Telegram.
 
 ## Estructura de salida
 
 La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 
-- `Periodo Analizado`: intervalo reciente y su comparación, por ejemplo `2025-11-04 a 2025-11-10 (vs 2025-10-28 a 2025-11-03)`.
+- `Periodo Analizado`: intervalo reciente y su comparación, por ejemplo `2025-11-01 a 2025-11-14 (vs 2025-10-18 a 2025-10-31)`.
 - `URL`: página evaluada.
 - `CTR (puntos porcentuales)`: diferencia en puntos porcentuales del CTR medio (acotada a ±50 p.p.).
 - `Impresiones (variacion %)` y `Clics (variacion %)`: cambios porcentuales sobre totales.
@@ -29,7 +30,7 @@ La tabla escrita en `analysis_raw` contiene las siguientes columnas:
 1. Se establece conexión con la hoja `SEO_Master_Data` mediante `SheetsManager`.
 2. Se leen las pestañas `gsc_data_daily` y `ga4_data_daily` en `pandas.DataFrame`.
 3. Se estandarizan nombres de columnas y formatos de fecha.
-4. Se convierten las métricas en numéricas (cuando llegan como texto) y se calculan agregados de los últimos 7 días y del periodo de 7 días inmediatamente anterior para las métricas:
+4. Se convierten las métricas en numéricas (cuando llegan como texto) y se calculan agregados de los últimos 14 días y del periodo de 14 días inmediatamente anterior para las métricas:
    - CTR, impresiones, clics y posición media (GSC).
    - Sesiones, duración media y tasa de rebote (GA4).
 5. Se calcula, por métrica, el cambio correspondiente (porcentaje para valores acumulados, diferencia para promedios) aplicando umbrales que descartan divisores diminutos y recortan valores atípicos. Después se compone la etiqueta de `Periodo Analizado` para documentar el intervalo comparado.
@@ -68,12 +69,13 @@ python pipeline/analysis_variaciones.py --dry-run --verbose
 
 ## Automatización
 
-El workflow `assistant-analysis.yml`:
+El workflow `analysis-variaciones.yml`:
 
-1. Se ejecuta cada lunes a las 02:00 UTC (domingo 21:00 hora de Colombia, cron `0 2 * * 1`) o manualmente mediante la opción *Run workflow*.
+1. Se ejecuta cada lunes a las 08:15 UTC (03:15 hora de Bogotá, cron `15 8 * * 1`) o manualmente mediante la opción *Run workflow*.
 2. Instala dependencias desde `requirements.txt` si existe; de lo contrario instala `pandas` y `numpy`.
 3. Guarda las credenciales de Google en `service_account.json` si el secreto está configurado.
 4. Ejecuta el script `pipeline/analysis_variaciones.py` en modo detallado (`--verbose`), pasando el nombre de la hoja si existe el secreto `SEO_SPREADSHEET_NAME`.
+5. Envía un resumen por Telegram con el estado de la ejecución, la hora local de Bogotá y el total de URLs evaluadas, siempre que los secretos `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` estén definidos.
 
 Si deseas programar una ejecución en un servidor propio, puedes usar un cron equivalente:
 
