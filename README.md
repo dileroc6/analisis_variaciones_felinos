@@ -7,7 +7,8 @@
 - `pipeline/analysis_variaciones.py`: script que lee las pestañas `gsc_data_daily` y `ga4_data_daily`, normaliza columnas, agrega métricas en ventanas consecutivas de catorce días, calcula variaciones o diferencias por URL y escribe la tabla final en `analysis_raw`. También deja preparada la columna `Resumen_IA` para recomendaciones posteriores y ofrece un modo `--verbose` para seguir la ejecución paso a paso.
 - `pipeline/sheets_manager.py`: módulo que autentica y comunica con Google Sheets mediante cuentas de servicio, exponiendo la clase `SheetsManager` usada por el pipeline.
 - `pipeline/telegram_notifier.py`: utilitario que arma un resumen ejecutivo de la corrida y lo envía por Telegram cuando los secretos del bot están configurados.
-- `.github/workflows/analysis-variaciones.yml`: workflow de GitHub Actions programado para ejecutar el pipeline cada lunes a las 08:15 UTC (03:15 hora de Bogotá) o bajo demanda mediante `workflow_dispatch`, mostrando el detalle de cada paso y notificando el resultado por Telegram.
+- `pipeline/schedule_guard.py`: script auxiliar que decide si corresponde ejecutar el pipeline considerando múltiplos de 28 días a partir del 28 de diciembre de 2025.
+- `.github/workflows/analysis-variaciones.yml`: workflow de GitHub Actions que se despierta todos los días a las 08:15 UTC (03:15 hora de Bogotá) pero sólo deja correr el pipeline cada 28 días a partir del 28 de diciembre de 2025; también puede activarse bajo demanda mediante `workflow_dispatch` y envía un resumen por Telegram.
 
 ## Estructura de salida
 
@@ -71,17 +72,19 @@ python pipeline/analysis_variaciones.py --dry-run --verbose
 
 El workflow `analysis-variaciones.yml`:
 
-1. Se ejecuta cada lunes a las 08:15 UTC (03:15 hora de Bogotá, cron `15 8 * * 1`) o manualmente mediante la opción *Run workflow*.
+1. Se despierta diariamente a las 08:15 UTC (03:15 hora de Bogotá, cron `15 8 * * *`), pero un guardia interno sólo permite que el pipeline se ejecute cada 28 días contando desde el 28 de diciembre de 2025; también puede iniciarse manualmente mediante *Run workflow*.
 2. Instala dependencias desde `requirements.txt` si existe; de lo contrario instala `pandas` y `numpy`.
 3. Guarda las credenciales de Google en `service_account.json` si el secreto está configurado.
 4. Ejecuta el script `pipeline/analysis_variaciones.py` en modo detallado (`--verbose`), pasando el nombre de la hoja si existe el secreto `SEO_SPREADSHEET_NAME`.
 5. Envía un resumen por Telegram con el estado de la ejecución, la hora local de Bogotá y el total de URLs evaluadas, siempre que los secretos `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` estén definidos.
 
-Si deseas programar una ejecución en un servidor propio, puedes usar un cron equivalente:
+Si deseas programar una ejecución en un servidor propio, agenda un cron diario (por ejemplo):
 
 ```
-0 3 * * 1 /usr/bin/python /ruta/al/proyecto/pipeline/analysis_variaciones.py --verbose
+15 3 * * * /usr/bin/python /ruta/al/proyecto/pipeline/analysis_variaciones.py --verbose
 ```
+
+La lógica interna revisará la ventana de 28 días y sólo continuará cuando corresponda.
 
 ## Buenas prácticas para futuras modificaciones
 
