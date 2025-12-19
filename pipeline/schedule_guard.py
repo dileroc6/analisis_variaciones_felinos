@@ -19,7 +19,11 @@ def parse_anchor(raw: str) -> datetime:
     return anchor.astimezone(timezone.utc)
 
 
-def compute_should_run(anchor: datetime, now: datetime) -> tuple[bool, int]:
+def compute_should_run(anchor: datetime, now: datetime, force: bool) -> tuple[bool, int]:
+    if force:
+        delta = now - anchor
+        days_elapsed = delta.days if now >= anchor else -1
+        return True, days_elapsed
     if now < anchor:
         return False, -1
     delta = now - anchor
@@ -30,7 +34,10 @@ def main() -> None:
     anchor_raw = os.environ.get("ANCHOR_TIMESTAMP_UTC", "2025-12-28T08:15:00+00:00")
     anchor = parse_anchor(anchor_raw)
     now = datetime.now(timezone.utc)
-    should_run, days_elapsed = compute_should_run(anchor, now)
+    force_raw = os.environ.get("FORCE_RUN", "false").strip().lower()
+    force = force_raw in {"true", "1", "yes", "y"}
+
+    should_run, days_elapsed = compute_should_run(anchor, now, force)
 
     output_path = os.environ.get("GITHUB_OUTPUT")
     if not output_path:
@@ -41,10 +48,12 @@ def main() -> None:
         handle.write(f"days_elapsed={days_elapsed}\n")
         handle.write(f"anchor_utc={anchor.isoformat()}\n")
         handle.write(f"now_utc={now.isoformat()}\n")
+        handle.write(f"force_run={'true' if force else 'false'}\n")
 
     print(f"Anchor UTC: {anchor.isoformat()}")
     print(f"Now UTC:    {now.isoformat()}")
     print(f"Days elapsed since anchor: {days_elapsed}")
+    print(f"Force run requested: {'yes' if force else 'no'}")
     print(f"Should run today: {'yes' if should_run else 'no'}")
 
 

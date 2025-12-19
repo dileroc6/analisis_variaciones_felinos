@@ -78,6 +78,8 @@ El workflow `analysis-variaciones.yml`:
 4. Ejecuta el script `pipeline/analysis_variaciones.py` en modo detallado (`--verbose`), pasando el nombre de la hoja si existe el secreto `SEO_SPREADSHEET_NAME`.
 5. Envía un resumen por Telegram con el estado de la ejecución, la hora local de Bogotá y el total de URLs evaluadas, siempre que los secretos `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` estén definidos.
 
+Para forzar una corrida fuera de la cadencia de 28 días, usa la opción *Run workflow* y establece el input `force_run` en `true`.
+
 Si deseas programar una ejecución en un servidor propio, agenda un cron diario (por ejemplo):
 
 ```

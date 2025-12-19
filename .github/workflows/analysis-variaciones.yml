@@ -3,7 +3,12 @@ name: Analisis variaciones felinos
 on:
   schedule:
     - cron: "15 8 * * *"  # 08:15 UTC diario; un guardia interno lo limita a cada 28 dias
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: "Forzar ejecucion inmediata"
+        required: false
+        default: "false"
 
 jobs:
   run-pipeline:
@@ -39,6 +44,7 @@ jobs:
         id: schedule_guard
         env:
           ANCHOR_TIMESTAMP_UTC: "2025-12-28T08:15:00+00:00"
+          FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }}
         run: |
           python pipeline/schedule_guard.py
 
@@ -46,6 +52,7 @@ jobs:
         if: ${{ steps.schedule_guard.outputs.should_run != 'true' }}
         run: |
           echo "El pipeline solo se ejecuta cada 28 dias desde 2025-12-28; hoy se omite."
+          echo "Para forzar la ejecucion usa workflow_dispatch con force_run=true."
 
       - name: "Ejecutar pipeline de analisis"
         id: run_pipeline
